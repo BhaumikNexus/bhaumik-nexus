@@ -43,7 +43,7 @@ export const modules: Module[] = [
   {
     icon: "🧩",
     title: "Simulation",
-    description: "Run molecular and scientific simulations. Advanced simulation tools will be added later.",
+    description: "Run Lennard-Jones molecular dynamics, reaction kinetics (enzymes) and pharmacokinetics simulations in your browser.",
   },
   {
     icon: "📁",

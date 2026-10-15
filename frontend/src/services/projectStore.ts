@@ -20,6 +20,7 @@ export const OPENABLE_MODULES = [
   'Experiment Data',
   'Protein Structure',
   'Molecular Visualization',
+  'Simulation',
 ] as const
 
 const KEY = 'bhaumik-nexus.projects.v1'

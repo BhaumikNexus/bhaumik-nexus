@@ -5,6 +5,7 @@ import MolecularVisualization from '../modules/molviz/MolecularVisualization.tsx
 import ScientificData from '../modules/data/ScientificData.tsx'
 import ProteinStructure from '../modules/protein/ProteinStructure.tsx'
 import SequenceAnalysis from '../modules/sequence/SequenceAnalysis.tsx'
+import Simulation from '../modules/simulation/Simulation.tsx'
 import ProjectsFiles from '../modules/projects/ProjectsFiles.tsx'
 import type { ProjectItem } from '../services/projectStore.ts'
 
@@ -47,6 +48,8 @@ function ModuleWorkspace({ module, onBack, initial = null, onOpenItem }: ModuleW
           <ScientificData initial={initial} />
         ) : module.title === 'Experiment Data' ? (
           <ExperimentData initial={initial} />
+        ) : module.title === 'Simulation' ? (
+          <Simulation initial={initial} />
         ) : module.title === 'Projects / Files' ? (
           <ProjectsFiles onOpen={(i) => onOpenItem?.(i)} />
         ) : (
