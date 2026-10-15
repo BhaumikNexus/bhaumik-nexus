@@ -12,6 +12,8 @@ import {
   translate,
   validate,
 } from './sequenceUtils.ts'
+import SaveToProject from '../../components/common/SaveToProject.tsx'
+import type { ProjectItem } from '../../services/projectStore.ts'
 
 const EXAMPLES = [
   { label: 'Short DNA', text: '>example_dna (synthetic, for testing)\nATGGCCATTGTAATGGGCCGCTGAAAGGGTGCCCGATAG' },
@@ -27,8 +29,8 @@ function pct(value: number, total: number): string {
   return total === 0 ? '0.0' : ((value / total) * 100).toFixed(1)
 }
 
-function SequenceAnalysis() {
-  const [text, setText] = useState('')
+function SequenceAnalysis({ initial }: { initial?: ProjectItem | null }) {
+  const [text, setText] = useState(initial?.data ?? '')
   const [selected, setSelected] = useState(0)
   const [frame, setFrame] = useState(0)
   const [minAa, setMinAa] = useState(30)
@@ -117,6 +119,7 @@ function SequenceAnalysis() {
             <button type="button" className="chip" disabled={!text} onClick={() => setText('')}>
               Clear
             </button>
+            <SaveToProject module="DNA / RNA Sequence" kind="sequence" data={text} defaultName={records[0]?.name ?? 'Sequence'} />
           </div>
           {fileNote && <p className="note">{fileNote}</p>}
         </div>

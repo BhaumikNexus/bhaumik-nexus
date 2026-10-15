@@ -1,5 +1,10 @@
 import { useMemo, useState } from 'react'
+import SaveToProject from '../../components/common/SaveToProject.tsx'
+import type { ProjectItem } from '../../services/projectStore.ts'
 import { buildTable, linearFit, pairs, parseDelimited, toNumber } from '../data/dataUtils.ts'
+import { brownForsythe, kruskalWallis, mannWhitney, shapiroWilk, tukeyHsd } from './advancedStats.ts'
+import DoseChart from './DoseChart.tsx'
+import { fit4pl } from './doseResponse.ts'
 import GroupChart from './GroupChart.tsx'
 import { describe, fmt, fmtP, oneWayAnova, pairedTTest, welchTTest } from './statsUtils.ts'
 import type { Describe } from './statsUtils.ts'
@@ -42,16 +47,40 @@ function parseGroups(text: string): { groups: Group[]; ignored: number } {
   return { groups, ignored }
 }
 
-type Mode = 'groups' | 'curve'
+type Mode = 'groups' | 'curve' | 'dose'
 
-function ExperimentData() {
-  const [mode, setMode] = useState<Mode>('groups')
-  const [text, setText] = useState('')
+function parseInitial(item?: ProjectItem | null): { mode: Mode; text: string; std: string; unk: string; dose: string } {
+  const out = { mode: 'groups' as Mode, text: '', std: '', unk: '', dose: '' }
+  if (!item) return out
+  if (item.kind === 'curve') {
+    out.mode = 'curve'
+    try {
+      const j = JSON.parse(item.data) as { std?: unknown; unk?: unknown }
+      out.std = typeof j.std === 'string' ? j.std : ''
+      out.unk = typeof j.unk === 'string' ? j.unk : ''
+    } catch {
+      out.std = item.data
+    }
+  } else if (item.kind === 'dose') {
+    out.mode = 'dose'
+    out.dose = item.data
+  } else out.text = item.data
+  return out
+}
+
+const DOSE_EXAMPLE =
+  '# Synthetic demo data, not real measurements: dose in uM, response in % of control\ndose\tresponse\n0\t100.2\n0.001\t99.1\n0.003\t97.5\n0.01\t92.0\n0.03\t78.3\n0.1\t52.1\n0.3\t27.6\n1\t10.9\n3\t5.2\n10\t3.1'
+
+function ExperimentData({ initial }: { initial?: ProjectItem | null }) {
+  const start = parseInitial(initial)
+  const [mode, setMode] = useState<Mode>(start.mode)
+  const [text, setText] = useState(start.text)
   const [errType, setErrType] = useState<'sd' | 'sem'>('sd')
   const [paired, setPaired] = useState(false)
-  const [std, setStd] = useState('')
-  const [unk, setUnk] = useState('')
+  const [std, setStd] = useState(start.std)
+  const [unk, setUnk] = useState(start.unk)
   const [copied, setCopied] = useState('')
+  const [dose, setDose] = useState(start.dose)
 
   const { groups, ignored } = useMemo(() => parseGroups(text), [text])
 
@@ -75,6 +104,41 @@ function ExperimentData() {
     })
     return { kind: 'many' as const, anova, vs }
   }, [groups, paired])
+
+  const checks = useMemo(() => {
+    if (groups.length === 0) return null
+    return {
+      shapiro: groups.map((g) => ({ name: g.name, n: g.d.n, r: shapiroWilk(g.values) })),
+      bf: groups.length >= 2 ? brownForsythe(groups.map((g) => g.values)) : null,
+    }
+  }, [groups])
+
+  const rank = useMemo(() => {
+    if (groups.length < 2) return null
+    if (groups.length === 2) return { kind: 'mw' as const, mw: paired ? null : mannWhitney(groups[0].values, groups[1].values) }
+    const kw = kruskalWallis(groups.map((g) => g.values))
+    const tukey = groups.length <= 10 ? tukeyHsd(groups.map((g) => g.name), groups.map((g) => g.values)) : null
+    return { kind: 'kw' as const, kw, tukey }
+  }, [groups, paired])
+
+  const doseData = useMemo(() => {
+    const cleaned = dose.split('\n').filter((l) => !l.trim().startsWith('#')).join('\n')
+    const rows = parseDelimited(cleaned)
+    const x: number[] = []
+    const y: number[] = []
+    let skipped = 0
+    rows.forEach((row, idx) => {
+      const a = toNumber((row[0] ?? '').trim())
+      const b = toNumber((row[1] ?? '').trim())
+      if (a === null || b === null || Number.isNaN(a) || Number.isNaN(b)) {
+        if (idx > 0) skipped++ // the first row is treated as a header
+        return
+      }
+      x.push(a)
+      y.push(b)
+    })
+    return { x, y, skipped, fit: x.length >= 5 ? fit4pl(x, y) : null }
+  }, [dose])
 
   const curve = useMemo(() => {
     const cleaned = std.split('\n').filter((l) => !l.trim().startsWith('#')).join('\n')
@@ -146,6 +210,10 @@ function ExperimentData() {
         <div className="tool-row seq-actions">
           <button type="button" className={`chip${mode === 'groups' ? ' chip-active' : ''}`} onClick={() => setMode('groups')}>Replicate groups</button>
           <button type="button" className={`chip${mode === 'curve' ? ' chip-active' : ''}`} onClick={() => setMode('curve')}>Standard curve</button>
+          <button type="button" className={`chip${mode === 'dose' ? ' chip-active' : ''}`} onClick={() => setMode('dose')}>Dose-response (EC50)</button>
+          {mode === 'groups' && <SaveToProject module="Experiment Data" kind="groups" data={text} defaultName="Replicate groups" />}
+          {mode === 'curve' && <SaveToProject module="Experiment Data" kind="curve" data={std.trim() || unk.trim() ? JSON.stringify({ std, unk }) : ''} defaultName="Standard curve" />}
+          {mode === 'dose' && <SaveToProject module="Experiment Data" kind="dose" data={dose} defaultName="Dose-response" />}
         </div>
 
         {mode === 'groups' && (
@@ -291,7 +359,135 @@ function ExperimentData() {
                     </p>
                   </div>
                 )}
+
+                {checks && (
+                  <div className="seq-block">
+                    <div className="seq-block-head"><h4>Assumption checks</h4></div>
+                    <div className="orf-scroll" tabIndex={0} role="region" aria-label="Normality per group">
+                      <table className="orf-table">
+                        <thead><tr><th>Group</th><th>n</th><th>Shapiro-Wilk W</th><th>p</th><th>Reading</th></tr></thead>
+                        <tbody>
+                          {checks.shapiro.map((c) => (
+                            <tr key={c.name}>
+                              <td>{c.name}</td>
+                              <td>{c.n}</td>
+                              <td>{c.r ? fmt(c.r.w, 5) : '—'}</td>
+                              <td>{c.r ? fmtP(c.r.p) : '—'}</td>
+                              <td>{!c.r ? (c.n < 3 ? 'needs at least 3 values' : 'all values equal') : c.r.p < 0.05 ? 'departs from normal' : 'no clear departure'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {checks.bf && (
+                      <p className="note">
+                        Equal variances (Brown-Forsythe, based on the median): F({checks.bf.df1}, {checks.bf.df2}) = {fmt(checks.bf.f)}, p = {fmtP(checks.bf.p)}
+                        {checks.bf.p < 0.05 ? ' - the spread differs between groups.' : ' - no clear difference in spread.'}
+                      </p>
+                    )}
+                    <p className="note">
+                      With only a handful of replicates these checks have very little power: a non-significant result does not show the data are
+                      normal. Look at the chart, and if normality or equal spread is doubtful use the rank-based tests below.
+                    </p>
+                  </div>
+                )}
+
+                {rank && (
+                  <div className="seq-block">
+                    <div className="seq-block-head"><h4>{rank.kind === 'mw' ? 'Rank-based test' : 'Rank-based test and post-hoc'}</h4></div>
+                    {rank.kind === 'mw' ? (
+                      rank.mw ? (
+                        <dl className="tool-info">
+                          <dt>Mann-Whitney U (two-sided)</dt><dd>U = {fmt(Math.min(rank.mw.u1, rank.mw.u2))}</dd>
+                          <dt>p-value</dt><dd>{fmtP(rank.mw.p)} ({rank.mw.method})</dd>
+                        </dl>
+                      ) : (
+                        <p className="note">{paired ? 'Mann-Whitney is for independent groups; untick "Paired samples" to see it.' : 'Not enough data.'}</p>
+                      )
+                    ) : (
+                      <>
+                        {rank.kw && (
+                          <dl className="tool-info">
+                            <dt>Kruskal-Wallis</dt><dd>H({rank.kw.df}) = {fmt(rank.kw.h)}</dd>
+                            <dt>p-value</dt><dd>{fmtP(rank.kw.p)} (chi-square approximation, tie-corrected)</dd>
+                          </dl>
+                        )}
+                        {rank.tukey ? (
+                          <div className="orf-scroll" tabIndex={0} role="region" aria-label="Tukey HSD pairwise comparisons">
+                            <table className="orf-table">
+                              <thead><tr><th>Pair</th><th>Mean difference</th><th>q</th><th>Tukey p</th></tr></thead>
+                              <tbody>
+                                {rank.tukey.map((t) => (
+                                  <tr key={t.a + '|' + t.b}>
+                                    <td>{t.a} vs {t.b}</td>
+                                    <td>{fmt(t.diff)}</td>
+                                    <td>{fmt(t.q)}</td>
+                                    <td>{fmtP(t.p)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <p className="note">Tukey comparisons are shown for up to 10 groups.</p>
+                        )}
+                      </>
+                    )}
+                    <p className="note">
+                      Mann-Whitney and Kruskal-Wallis compare ranks, so they do not need normal data; they test whether values in one group tend to
+                      be larger, not whether the means differ. Mann-Whitney is exact for small samples without ties (up to 30 per group), otherwise
+                      a tie-corrected normal approximation. Tukey HSD compares every pair after an ANOVA and controls the overall error rate; it
+                      uses the pooled variance and assumes roughly equal spread.
+                    </p>
+                  </div>
+                )}
               </>
+            )}
+          </>
+        )}
+
+        {mode === 'dose' && (
+          <>
+            <div className="seq-input">
+              <label htmlFor="exp-dose">Dose and response, two columns (optional header). Replicates: repeat the dose on several rows.</label>
+              <textarea id="exp-dose" value={dose} spellCheck={false} placeholder={'0.01\t92\n0.1\t52\n1\t11'} onChange={(e) => setDose(e.target.value)} />
+              <div className="tool-row seq-actions">
+                <button type="button" className="chip" onClick={() => setDose(DOSE_EXAMPLE)}>Example</button>
+                <button type="button" className="chip" disabled={!dose} onClick={() => setDose('')}>Clear</button>
+              </div>
+              {doseData.skipped > 0 && <p className="note">{doseData.skipped} row(s) were not two numbers and were skipped.</p>}
+            </div>
+            {dose.trim() && !doseData.fit && <p className="note">Need at least 5 rows with 4 or more different doses, at least 4 of them above zero, all non-negative.</p>}
+            {doseData.fit && (
+              <div className="seq-block">
+                <div className="seq-block-head"><h4>Four-parameter logistic fit</h4></div>
+                <div className="chem-draw data-wrap">
+                  <DoseChart x={doseData.x} y={doseData.y} fit={doseData.fit} xLabel="Dose" yLabel="Response" />
+                </div>
+                <div className="orf-scroll" tabIndex={0} role="region" aria-label="Fitted parameters">
+                  <table className="orf-table">
+                    <thead><tr><th>Parameter</th><th>Estimate</th><th>Approx. standard error</th></tr></thead>
+                    <tbody>
+                      <tr><td>Top (response at low dose)</td><td>{fmt(doseData.fit.top)}</td><td>{fmt(doseData.fit.se?.top)}</td></tr>
+                      <tr><td>Bottom (response at high dose)</td><td>{fmt(doseData.fit.bottom)}</td><td>{fmt(doseData.fit.se?.bottom)}</td></tr>
+                      <tr><td>EC50 / IC50 (dose at the midpoint)</td><td>{fmt(doseData.fit.ec50)}</td><td>{doseData.fit.ec50Ci ? `95% CI ${fmt(doseData.fit.ec50Ci[0])} to ${fmt(doseData.fit.ec50Ci[1])}` : '—'}</td></tr>
+                      <tr><td>Hill slope</td><td>{fmt(doseData.fit.hill)}</td><td>{doseData.fit.se ? `× / ÷ ${fmt(Math.exp(doseData.fit.se.lnHill), 3)}` : '—'}</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <dl className="tool-info">
+                  <dt>Points</dt><dd>{doseData.fit.n}</dd>
+                  <dt>R²</dt><dd>{fmt(doseData.fit.r2, 5)}</dd>
+                  <dt>Residual sum of squares</dt><dd>{fmt(doseData.fit.rss)}</dd>
+                </dl>
+                {doseData.fit.warnings.map((w) => <p className="note" key={w}>{w}</p>)}
+                <p className="note">
+                  Model: response = bottom + (top − bottom) / (1 + (dose / EC50)^hill), fitted by least squares with the EC50 and Hill slope
+                  kept positive. Dose 0 is allowed and takes the top value. The confidence interval for EC50 uses the fit's curvature and the t
+                  distribution (approximate, and it can be unreliable with few points or a poorly defined plateau). Whether the response is
+                  inhibition or stimulation, "top" is the value at low dose.
+                </p>
+              </div>
             )}
           </>
         )}

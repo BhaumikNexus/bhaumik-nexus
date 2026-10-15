@@ -5,13 +5,17 @@ import MolecularVisualization from '../modules/molviz/MolecularVisualization.tsx
 import ScientificData from '../modules/data/ScientificData.tsx'
 import ProteinStructure from '../modules/protein/ProteinStructure.tsx'
 import SequenceAnalysis from '../modules/sequence/SequenceAnalysis.tsx'
+import ProjectsFiles from '../modules/projects/ProjectsFiles.tsx'
+import type { ProjectItem } from '../services/projectStore.ts'
 
 interface ModuleWorkspaceProps {
   module: Module
   onBack: () => void
+  initial?: ProjectItem | null
+  onOpenItem?: (item: ProjectItem) => void
 }
 
-function ModuleWorkspace({ module, onBack }: ModuleWorkspaceProps) {
+function ModuleWorkspace({ module, onBack, initial = null, onOpenItem }: ModuleWorkspaceProps) {
   return (
     <section className="workspace">
       <div className="workspace-bar">
@@ -32,17 +36,19 @@ function ModuleWorkspace({ module, onBack }: ModuleWorkspaceProps) {
 
       <div className="workspace-body">
         {module.title === 'Protein Structure' ? (
-          <ProteinStructure />
+          <ProteinStructure initial={initial} />
         ) : module.title === 'DNA / RNA Sequence' ? (
-          <SequenceAnalysis />
+          <SequenceAnalysis initial={initial} />
         ) : module.title === 'Chemical Structure' ? (
-          <ChemicalStructure />
+          <ChemicalStructure initial={initial} />
         ) : module.title === 'Molecular Visualization' ? (
-          <MolecularVisualization />
+          <MolecularVisualization initial={initial} />
         ) : module.title === 'Scientific Data' ? (
-          <ScientificData />
+          <ScientificData initial={initial} />
         ) : module.title === 'Experiment Data' ? (
-          <ExperimentData />
+          <ExperimentData initial={initial} />
+        ) : module.title === 'Projects / Files' ? (
+          <ProjectsFiles onOpen={(i) => onOpenItem?.(i)} />
         ) : (
           <>
             <div className="workspace-viewer">

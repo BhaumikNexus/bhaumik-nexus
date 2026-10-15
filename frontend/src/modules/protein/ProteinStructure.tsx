@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { Viewer3D } from '../../types/3dmol.d.ts'
 import { fetchEntryRecord, fetchStructure, loadViewerLibrary, parseTitle } from '../../services/structureService.ts'
 import type { EntryRecord } from '../../services/structureService.ts'
+import SaveToProject from '../../components/common/SaveToProject.tsx'
+import type { ProjectItem } from '../../services/projectStore.ts'
 
 type Representation = 'cartoon' | 'stick' | 'sphere' | 'line'
 type ColorMode = 'spectrum' | 'chain' | 'ssPyMol'
@@ -19,11 +21,11 @@ interface StructureInfo {
 
 const EXAMPLES = ['1CRN', '4HHB', '1L5G']
 
-function ProteinStructure() {
+function ProteinStructure({ initial }: { initial?: ProjectItem | null }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<Viewer3D | null>(null)
 
-  const [pdbId, setPdbId] = useState('')
+  const [pdbId, setPdbId] = useState(initial?.data ?? '')
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState('')
   const [info, setInfo] = useState<StructureInfo | null>(null)
@@ -107,6 +109,15 @@ function ProteinStructure() {
       setError(err instanceof Error ? err.message : 'Something went wrong loading the structure.')
     }
   }
+
+  const startedRef = useRef(false)
+  useEffect(() => {
+    if (initial && !startedRef.current) {
+      startedRef.current = true
+      void loadStructure(initial.data)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -192,6 +203,12 @@ function ProteinStructure() {
             </button>
           ))}
         </div>
+
+        {info && (
+          <div className="tool-row">
+            <SaveToProject module="Protein Structure" kind="pdb-id" data={info.id} defaultName={`PDB ${info.id}`} />
+          </div>
+        )}
 
         {status === 'error' && <p className="tool-error">{error}</p>}
 

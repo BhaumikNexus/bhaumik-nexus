@@ -3,6 +3,8 @@ import MolViewer from '../../components/molecular/MolViewer.tsx'
 import type { ColorMode, Representation } from '../../components/molecular/MolViewer.tsx'
 import { fetchStructure } from '../../services/structureService.ts'
 import type { Viewer3D } from '../../types/3dmol.d.ts'
+import SaveToProject from '../../components/common/SaveToProject.tsx'
+import type { ProjectItem } from '../../services/projectStore.ts'
 
 const FORMATS: Record<string, string> = {
   pdb: 'pdb', ent: 'pdb', cif: 'cif', mmcif: 'cif', sdf: 'sdf', mol: 'sdf', mol2: 'mol2', xyz: 'xyz',
@@ -32,9 +34,9 @@ function pdbSummary(data: string) {
   return { chains: [...chains].sort(), hets: [...hets.keys()].sort(), models: Math.max(models, 1) }
 }
 
-function MolecularVisualization() {
+function MolecularVisualization({ initial }: { initial?: ProjectItem | null }) {
   const viewerRef = useRef<Viewer3D | null>(null)
-  const [id, setId] = useState('')
+  const [id, setId] = useState(initial?.data ?? '')
   const [pasted, setPasted] = useState('')
   const [pasteFormat, setPasteFormat] = useState('pdb')
   const [loaded, setLoaded] = useState<Loaded | null>(null)
@@ -146,6 +148,9 @@ function MolecularVisualization() {
                 {ex}
               </button>
             ))}
+            {loaded?.source.startsWith('RCSB PDB ') && (
+              <SaveToProject module="Molecular Visualization" kind="pdb-id" data={loaded.source.slice(9)} defaultName={loaded.source} />
+            )}
             <label className="chip file-chip">
               Open file
               <input type="file" accept=".pdb,.ent,.cif,.mmcif,.sdf,.mol,.mol2,.xyz" onChange={onFile} />

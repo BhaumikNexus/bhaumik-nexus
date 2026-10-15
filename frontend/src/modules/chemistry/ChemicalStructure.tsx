@@ -7,6 +7,8 @@ import type { RDKitModule } from '../../services/rdkitService.ts'
 import { analyze, parseLibrary, prepareInput, rankSimilar } from './chemUtils.ts'
 import type { SimilarityHit } from './chemUtils.ts'
 import { REFERENCE_SET } from './referenceSet.ts'
+import SaveToProject from '../../components/common/SaveToProject.tsx'
+import type { ProjectItem } from '../../services/projectStore.ts'
 
 const EXAMPLES = [
   { label: 'Aspirin', smiles: 'CC(=O)OC1=CC=CC=C1C(=O)O' },
@@ -15,10 +17,10 @@ const EXAMPLES = [
   { label: 'Paracetamol', smiles: 'CC(=O)NC1=CC=C(O)C=C1' },
 ]
 
-function ChemicalStructure() {
+function ChemicalStructure({ initial }: { initial?: ProjectItem | null }) {
   const [rdkit, setRdkit] = useState<RDKitModule | null>(null)
   const [loadError, setLoadError] = useState('')
-  const [smiles, setSmiles] = useState('')
+  const [smiles, setSmiles] = useState(initial?.data ?? '')
   const [smarts, setSmarts] = useState('')
   const [note, setNote] = useState('')
   const [nameQuery, setNameQuery] = useState('')
@@ -129,6 +131,7 @@ function ChemicalStructure() {
             <button type="button" className="chip" disabled={!smiles} onClick={() => setInput('')}>
               Clear
             </button>
+            <SaveToProject module="Chemical Structure" kind="structure" data={smiles} defaultName={data ? data.formula : 'Molecule'} />
           </div>
           <div className="tool-row seq-actions">
             <input

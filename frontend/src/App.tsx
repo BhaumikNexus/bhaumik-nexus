@@ -2,16 +2,27 @@ import { useState } from 'react'
 import './App.css'
 import { modules } from './data/modules.ts'
 import ModuleWorkspace from './components/ModuleWorkspace.tsx'
+import type { ProjectItem } from './services/projectStore.ts'
 
 function App() {
   const [selectedModule, setSelectedModule] = useState<string | null>(null)
+  const [openItem, setOpenItem] = useState<ProjectItem | null>(null)
+
+  const goHome = () => {
+    setOpenItem(null)
+    setSelectedModule(null)
+  }
+  const openFromProject = (item: ProjectItem) => {
+    setOpenItem(item)
+    setSelectedModule(item.module)
+  }
 
   const activeModule = modules.find((m) => m.title === selectedModule) ?? null
 
   return (
     <div className="app">
       <header className="header">
-        <button className="brand" onClick={() => setSelectedModule(null)}>
+        <button className="brand" onClick={goHome}>
           <div className="brand-mark">BN</div>
 
           <div className="brand-text">
@@ -29,7 +40,10 @@ function App() {
         {activeModule ? (
           <ModuleWorkspace
             module={activeModule}
-            onBack={() => setSelectedModule(null)}
+            key={`${activeModule.title}:${openItem?.id ?? ''}`}
+            initial={openItem}
+            onOpenItem={openFromProject}
+            onBack={goHome}
           />
         ) : (
           <>
@@ -95,7 +109,10 @@ function App() {
                   <button
                     className="module-card"
                     key={module.title}
-                    onClick={() => setSelectedModule(module.title)}
+                    onClick={() => {
+                      setOpenItem(null)
+                      setSelectedModule(module.title)
+                    }}
                   >
                     <div className="module-icon">
                       {module.icon}

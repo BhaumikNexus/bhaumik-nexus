@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import Chart from './Chart.tsx'
 import type { ChartKind } from './Chart.tsx'
 import { buildTable, fmt, histogram, linearFit, pairs, parseDelimited, pearson, summarize } from './dataUtils.ts'
+import SaveToProject from '../../components/common/SaveToProject.tsx'
+import type { ProjectItem } from '../../services/projectStore.ts'
 
 const EXAMPLES = [
   {
@@ -14,8 +16,8 @@ const EXAMPLES = [
   },
 ]
 
-function ScientificData() {
-  const [text, setText] = useState('')
+function ScientificData({ initial }: { initial?: ProjectItem | null }) {
+  const [text, setText] = useState(initial?.data ?? '')
   const [note, setNote] = useState('')
   const [kind, setKind] = useState<ChartKind>('scatter')
   const [xName, setXName] = useState('')
@@ -77,6 +79,7 @@ function ScientificData() {
               <input type="file" accept=".csv,.tsv,.txt" onChange={onFile} />
             </label>
             <button type="button" className="chip" disabled={!text} onClick={() => setText('')}>Clear</button>
+            <SaveToProject module="Scientific Data" kind="table" data={text} defaultName="Data table" />
           </div>
           {note && <p className="note">{note}</p>}
         </div>
