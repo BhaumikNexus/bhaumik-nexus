@@ -282,7 +282,7 @@ export function integrate(
   const n = y0.length
   const ts = [t0]
   const ys = [y0.slice()]
-  let y = y0.slice()
+  const y = y0.slice()
   let t = t0
   let h = (t1 - t0) / 1000
   let steps = 0
