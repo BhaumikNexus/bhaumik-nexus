@@ -1,5 +1,6 @@
 import type { Module } from '../data/modules.ts'
 import ChemicalStructure from '../modules/chemistry/ChemicalStructure.tsx'
+import ExperimentData from '../modules/experiment/ExperimentData.tsx'
 import MolecularVisualization from '../modules/molviz/MolecularVisualization.tsx'
 import ScientificData from '../modules/data/ScientificData.tsx'
 import ProteinStructure from '../modules/protein/ProteinStructure.tsx'
@@ -40,6 +41,8 @@ function ModuleWorkspace({ module, onBack }: ModuleWorkspaceProps) {
           <MolecularVisualization />
         ) : module.title === 'Scientific Data' ? (
           <ScientificData />
+        ) : module.title === 'Experiment Data' ? (
+          <ExperimentData />
         ) : (
           <>
             <div className="workspace-viewer">

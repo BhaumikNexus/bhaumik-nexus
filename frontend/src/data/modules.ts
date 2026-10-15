@@ -31,6 +31,11 @@ export const modules: Module[] = [
     description: "Visualize and interpret raw scientific datasets and experimental information.",
   },
   {
+    icon: "🧫",
+    title: "Experiment Data",
+    description: "Enter replicate measurements and get SD, SEM, confidence intervals, t-tests, ANOVA and standard curves in one click.",
+  },
+  {
     icon: "🤖",
     title: "AI Analysis",
     description: "Use AI-assisted tools to analyze biological and molecular information.",
